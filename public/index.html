@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Media Stream Downloader</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: "Poppins", sans-serif;
+    }
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+    }
+    h4, h1, h2, h3, h5, h6 {
+      color: #e6edf3 !important;
+    }
+    .hidden { display: none; }
+    .text-success { color: #3fb950 !important; }
+    .text-danger { color: #f85149 !important; }
+  </style>
+</head>
+
+<body class="d-flex justify-content-center align-items-center vh-100">
+<div class="container" style="max-width:420px">
+
+  <div id="authCard" class="card p-4">
+    <h4 class="text-center mb-3">Login / Signup</h4>
+
+    <input id="username" class="form-control mb-2" placeholder="Username (signup only)">
+    <input id="email" class="form-control mb-2" placeholder="Email" type="email">
+    <input id="password" type="password" class="form-control mb-3" placeholder="Password">
+
+    <button class="btn btn-success w-100 mb-2" onclick="signup()">Signup</button>
+    <button class="btn btn-primary w-100" onclick="login()">Login</button>
+
+    <p id="authMsg" class="mt-2 text-center"></p>
+  </div>
+
+  <div id="downloadCard" class="card p-4 hidden">
+    <h4 class="text-center mb-3">Media Downloader</h4>
+    <p id="welcomeMsg" class="text-center mb-3" style="color: #58a6ff;"></p>
+
+    <input id="videoUrl" class="form-control mb-2" placeholder="YouTube URL">
+
+    <div class="row mb-2">
+      <div class="col">
+        <select id="downloadType" class="form-select">
+          <option value="video">Video</option>
+          <option value="audio">Audio</option>
+        </select>
+      </div>
+      <div class="col">
+        <select id="format" class="form-select">
+          <option value="mp4">MP4</option>
+          <option value="webm">WEBM</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn btn-success w-100 mb-2" onclick="download()">Download</button>
+    <button class="btn btn-danger w-100" onclick="logout()">Logout</button>
+
+    <p id="status" class="text-info mt-2 text-center"></p>
+  </div>
+
+</div>
+
+<script>
+window.onload = async function() {
+  try {
+    const res = await fetch('/download/check', {
+      method: 'GET',
+      credentials: 'include'
+    });
+    
+    if (res.ok) {
+      authCard.classList.add("hidden");
+      downloadCard.classList.remove("hidden");
+    }
+  } catch (err) {
+    console.log('Not logged in');
+  }
+};
+
+async function signup() {
+  const usernameVal = username.value.trim();
+  const emailVal = email.value.trim();
+  const passwordVal = password.value;
+
+  if (!usernameVal || !emailVal || !passwordVal) {
+    authMsg.className = "mt-2 text-center text-danger";
+    authMsg.textContent = "All fields are required";
+    return;
+  }
+
+  if (passwordVal.length < 6) {
+    authMsg.className = "mt-2 text-center text-danger";
+    authMsg.textContent = "Password must be at least 6 characters";
+    return;
+  }
+
+  try {
+    const res = await fetch("/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: 'include',
+      body: JSON.stringify({
+        username: usernameVal,
+        email: emailVal,
+        password: passwordVal
+      })
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      authMsg.className = "mt-2 text-center text-success";
+      authMsg.textContent = "Signup successful! Please login.";
+      password.value = "";
+    } else {
+      authMsg.className = "mt-2 text-center text-danger";
+      authMsg.textContent = data.message || "Signup failed";
+    }
+  } catch (err) {
+    authMsg.className = "mt-2 text-center text-danger";
+    authMsg.textContent = "Network error: " + err.message;
+  }
+}
+
+async function login() {
+  const emailVal = email.value.trim();
+  const passwordVal = password.value;
+
+  if (!emailVal || !passwordVal) {
+    authMsg.className = "mt-2 text-center text-danger";
+    authMsg.textContent = "Email and password required";
+    return;
+  }
+
+  try {
+    const res = await fetch("/auth/signin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: 'include',
+      body: JSON.stringify({
+        email: emailVal,
+        password: passwordVal
+      })
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      authCard.classList.add("hidden");
+      downloadCard.classList.remove("hidden");
+      welcomeMsg.textContent = `Welcome, ${data.user.username}!`;
+    } else {
+      authMsg.className = "mt-2 text-center text-danger";
+      authMsg.textContent = data.message || "Invalid credentials";
+    }
+  } catch (err) {
+    authMsg.className = "mt-2 text-center text-danger";
+    authMsg.textContent = "Network error: " + err.message;
+  }
+}
+
+async function logout() {
+  try {
+    await fetch("/auth/logout", { 
+      method: "POST",
+      credentials: 'include'
+    });
+    location.reload();
+  } catch (err) {
+    console.error('Logout error:', err);
+    location.reload();
+  }
+}
+
+function download() {
+  const urlVal = videoUrl.value.trim();
+  
+  if (!urlVal) {
+    status.className = "text-danger mt-2 text-center";
+    status.textContent = "Please enter a video URL";
+    return;
+  }
+
+  status.className = "text-info mt-2 text-center";
+  status.textContent = "Downloading...";
+
+  const url = `/download?videoUrl=${encodeURIComponent(urlVal)}&downloadType=${downloadType.value}&format=${format.value}`;
+  window.location.href = url;
+}
+</script>
+</body>
+</html>
